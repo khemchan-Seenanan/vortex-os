@@ -1,0 +1,63 @@
+name: packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-debs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache apt archives in builder
+        uses: actions/cache@v4
+        with:
+          path: .cache/apt
+          key: builder-apt-${{ hashFiles('packages/builder/Dockerfile') }}
+
+      - name: Build all packages (Docker)
+        run: bash packages/build-all.sh
+
+      - name: Upload debs
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortex-debs
+          path: dist/debs/*.deb
+          if-no-files-found: error
+
+  publish-repo:
+    # Publishes the signed static repo tree on pushes to main only.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-debs
+    runs-on: ubuntu-latest
+    environment: apt-repo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vortex-debs
+          path: dist/debs
+
+      - name: Publish to apt repo tree
+        env:
+          # The armored private key lives ONLY in this secret. Never echo it.
+          VORTEX_GPG_SECRET: ${{ secrets.VORTEX_GPG_SECRET }}
+        run: |
+          bash repo/publish.sh mirror
+          bash repo/publish.sh add dist/debs/*.deb
+
+      - name: Deploy repo tree (GitHub Pages branch of vortex-repo)
+        env:
+          REPO_DEPLOY_TOKEN: ${{ secrets.REPO_DEPLOY_TOKEN }}
+        run: |
+          [ -n "$REPO_DEPLOY_TOKEN" ] || { echo "REPO_DEPLOY_TOKEN unset — skipping deploy"; exit 0; }
+          cd repo/public
+          git init -q -b main
+          git config user.name vortex-ci
+          git config user.email khemchanseenanan@gmail.com
+          git add -A
+          git commit -qm "publish $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${REPO_DEPLOY_TOKEN}@github.com/${{ github.repository_owner }}/vortex-repo.git" main:gh-pages

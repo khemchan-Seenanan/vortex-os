@@ -1,0 +1,57 @@
+# debos recipe — Vortex OS VM image (amd64 raw → qcow2/ova by build.sh).
+# Decision: debos over mkosi — YAML actions map 1:1 to our package-first flow
+# and the go-debos/debos container runs in CI without host packages
+# (kvm when available, UML/qemu fallback). See ARCHITECTURE.md.
+{{- $image := or .image "vortex-vm.raw" }}
+
+architecture: amd64
+
+actions:
+  - action: debootstrap
+    suite: bookworm
+    components: [ main, contrib, non-free-firmware ]
+    mirror: https://deb.debian.org/debian
+    variant: minbase
+
+  # Signed Vortex repo tree + keyring, bundled for an offline package install.
+  - action: overlay
+    source: overlays/vortex-repo
+    destination: /opt/vortex-repo
+
+  - action: overlay
+    source: overlays/apt
+    destination: /etc/apt
+
+  - action: run
+    description: Install kernel, bootloader, cloud-init and the Vortex packages
+    chroot: true
+    script: scripts/install-vortex.sh
+
+  - action: image-partition
+    imagename: {{ $image }}
+    imagesize: 8GB
+    partitiontype: msdos
+    mountpoints:
+      - mountpoint: /
+        partition: root
+    partitions:
+      - name: root
+        fs: ext4
+        start: 1MB
+        end: 100%
+        flags: [ boot ]
+
+  - action: filesystem-deploy
+    description: Deploy filesystem to image
+    setup-fstab: true
+    setup-kernel-cmdline: false
+
+  - action: run
+    description: Install GRUB (BIOS) with serial console
+    chroot: true
+    script: scripts/install-grub.sh
+
+  - action: run
+    description: Seal image (ssh keys, machine-id, slim)
+    chroot: true
+    script: scripts/seal.sh

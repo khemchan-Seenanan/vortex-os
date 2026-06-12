@@ -29,6 +29,9 @@ override_dh_auto_clean:
 	dh_auto_clean
 	rm -f vortex-stats-bin
 
-# Static Go binary: skip dwz/strip complaints from dh defaults
+# Static Go binary: no shared libs, no debug info to process, and no
+# cross objdump available — skip the dh steps that assume C artifacts.
 override_dh_dwz:
 override_dh_strip:
+override_dh_makeshlibs:
+override_dh_shlibdeps:

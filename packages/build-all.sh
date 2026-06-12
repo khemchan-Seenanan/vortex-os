@@ -70,8 +70,10 @@ build_pkg() { # $1 = package dir name, $2... = arch list ("all" means one neutra
     chmod +x "$dir/debian/rules"
     for arch in "$@"; do
         ( cd "$dir"
+          # -d: toolchains (Go tarball, NodeSource node) come from the builder
+          # image, not debs, so dpkg-checkbuilddeps can't see them.
           if [ "$arch" = all ] || [ "$arch" = "$(dpkg --print-architecture)" ]; then
-              dpkg-buildpackage -us -uc -b
+              dpkg-buildpackage -us -uc -b -d
           else
               # pure Go / npm payloads: no C cross toolchain needed
               dpkg-buildpackage -us -uc -b -a "$arch" -d

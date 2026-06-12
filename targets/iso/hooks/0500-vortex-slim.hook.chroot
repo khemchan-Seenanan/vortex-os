@@ -1,0 +1,15 @@
+#!/bin/sh
+# live-build chroot hook: runs after all packages are installed in the live fs.
+set -e
+
+# Shrink the live filesystem (it becomes the installed system byte-for-byte).
+/usr/sbin/vortex-slim
+
+# Drop the build-time local repo + its apt source; the online vortex.sources
+# from vortex-archive-keyring stays for post-install `apt upgrade`.
+rm -f /etc/apt/sources.list.d/vortex-local.sources
+rm -rf /opt/vortex-repo
+apt-get clean
+
+# Images never ship SSH host keys.
+rm -f /etc/ssh/ssh_host_*

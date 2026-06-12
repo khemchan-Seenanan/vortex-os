@@ -1,0 +1,87 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build packages + repo tree
+        env:
+          VORTEX_GPG_SECRET: ${{ secrets.VORTEX_GPG_SECRET }}
+        run: |
+          bash packages/build-all.sh
+          bash repo/publish.sh mirror
+          bash repo/publish.sh add dist/debs/*.deb
+      - uses: actions/upload-artifact@v4
+        with: { name: debs, path: dist/debs, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        with: { name: repo-tree, path: repo/public, if-no-files-found: error }
+
+  pi:
+    needs: packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: debs, path: dist/debs }
+      - uses: actions/download-artifact@v4
+        with: { name: repo-tree, path: repo/public }
+      - name: Enable binfmt/qemu for arm64 chroots
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - name: Build Pi image (pi-gen docker)
+        run: bash targets/pi/build.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: image-pi, path: dist/vortex-pi-*-arm64.img.xz, if-no-files-found: error }
+
+  iso:
+    needs: packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: debs, path: dist/debs }
+      - uses: actions/download-artifact@v4
+        with: { name: repo-tree, path: repo/public }
+      - name: Build installer ISO (live-build in privileged container)
+        run: bash targets/iso/build.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: image-iso, path: dist/vortex-*-amd64.iso, if-no-files-found: error }
+
+  vm:
+    needs: packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: debs, path: dist/debs }
+      - uses: actions/download-artifact@v4
+        with: { name: repo-tree, path: repo/public }
+      - name: Build VM image (debos; KVM if the runner allows)
+        run: bash targets/vm/build.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: image-vm, path: "dist/vortex-*-amd64.qcow2\ndist/vortex-*-amd64.ova", if-no-files-found: error }
+
+  release:
+    needs: [pi, iso, vm]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - name: Checksums
+        run: cd artifacts && sha256sum vortex-* > SHA256SUMS
+      - name: Draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/vortex-*
+            artifacts/SHA256SUMS

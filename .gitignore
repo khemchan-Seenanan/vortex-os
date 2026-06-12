@@ -37,8 +37,17 @@ targets/vm/scratch/
 tools/stats-daemon/vortex-stats
 tools/stats-daemon/vortex-stats-*
 
-# npm staging for vortex-openclaw
+# npm staging for vortex-openclaw (build-time only)
 packages/vortex-openclaw/opt/
+packages/vortex-openclaw/staging/
+packages/*/debian/changelog
+packages/*/debian/copyright
+!packages/vortex-archive-keyring/debian/copyright
+packages/*/debian/*.debhelper*
+packages/*/debian/.debhelper/
+packages/*/debian/files
+packages/*/debian/vortex-*/
+packages/vortex-webui/vortex-stats-bin
 
 # misc
 *.log

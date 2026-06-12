@@ -1,0 +1,22 @@
+# pi-gen configuration for the Vortex OS Raspberry Pi image (arm64).
+# Consumed by targets/pi/build.sh, which copies it into the pi-gen checkout.
+
+IMG_NAME=vortex-pi
+RELEASE=bookworm
+ARMHF=0
+
+TARGET_HOSTNAME=vortex
+FIRST_USER_NAME=vortex
+# Default password — the first-boot wizard forces a real one; Raspberry Pi
+# Imager users can override at flash time. Documented in README.
+FIRST_USER_PASS=vortex
+DISABLE_FIRST_BOOT_USER_RENAME=1
+ENABLE_SSH=1
+
+LOCALE_DEFAULT=en_US.UTF-8
+KEYBOARD_KEYMAP=us
+TIMEZONE_DEFAULT=America/Guyana
+
+STAGE_LIST="stage0 stage1 stage2 stage-vortex"
+DEPLOY_COMPRESSION=xz
+COMPRESSION_LEVEL=9
