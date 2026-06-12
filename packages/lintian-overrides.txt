@@ -4,9 +4,6 @@
 embedded-javascript-library
 # Native-version monorepo packages have no upstream tarball or watch file:
 debian-watch-file-is-missing
-# Units intentionally live in /etc/systemd/system (operator-overridable, per
-# the Vortex design spec) instead of /usr/lib/systemd/system:
-systemd-service-file-outside-lib
 # vortex-openclaw ships a pinned node_modules tree; long lines/minified JS:
 very-long-line-length-in-source-file
 source-contains-prebuilt-javascript-object

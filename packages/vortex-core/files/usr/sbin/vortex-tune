@@ -26,7 +26,9 @@ ENV_FILE=$ENV_DIR/openclaw.env
 SENTINEL="# vortex-tune: manual"
 DEFAULT_GATEWAY_PORT=18789
 
-mem_kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+# VORTEX_TUNE_MEM_KB: test hook — lets the test harness exercise every RAM
+# tier on one machine. Unset in normal operation.
+mem_kb=${VORTEX_TUNE_MEM_KB:-$(awk '/^MemTotal:/{print $2}' /proc/meminfo)}
 mem_mb=$(( mem_kb / 1024 ))
 
 if   [ "$mem_mb" -le 2048 ]; then

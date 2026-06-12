@@ -23,7 +23,18 @@ if [ ! -f /.dockerenv ] && [ -z "${VORTEX_IN_BUILDER:-}" ]; then
 fi
 
 # ---- stage 2: container side ------------------------------------------------
-cd /work
+# Bind mounts (especially Docker Desktop on Windows) are brutally slow for
+# npm/dh walking thousands of files. Copy the source onto container-local
+# disk, build there at native speed, and ship only the .debs back.
+SRC=/work
+BUILDROOT=/build
+mkdir -p "$BUILDROOT"
+tar -C "$SRC" \
+    --exclude=./.git --exclude=./dist --exclude=./targets/pi/pi-gen \
+    --exclude=./packages/vortex-openclaw/staging \
+    --exclude=./repo/.aptly --exclude=./repo/public \
+    -cf - . | tar -C "$BUILDROOT" -xf -
+cd "$BUILDROOT"
 VERSION=$(cat VERSION)
 . branding/identity.env
 
@@ -61,12 +72,12 @@ EOF
 
 build_pkg() { # $1 = package dir name, $2... = arch list ("all" means one neutral build)
     local pkg=$1; shift
-    local dir=/work/packages/$pkg
+    local dir=$BUILDROOT/packages/$pkg
     echo "=============================================================="
     echo "==> $pkg ($*)"
     gen_changelog "$dir" "$pkg"
     # debian/copyright is shared boilerplate; sync it from the keyring package
-    [ -f "$dir/debian/copyright" ] || cp /work/packages/vortex-archive-keyring/debian/copyright "$dir/debian/copyright"
+    [ -f "$dir/debian/copyright" ] || cp "$BUILDROOT/packages/vortex-archive-keyring/debian/copyright" "$dir/debian/copyright"
     chmod +x "$dir/debian/rules"
     for arch in "$@"; do
         ( cd "$dir"
@@ -79,8 +90,8 @@ build_pkg() { # $1 = package dir name, $2... = arch list ("all" means one neutra
               dpkg-buildpackage -us -uc -b -a "$arch" -d
           fi )
     done
-    mv /work/packages/*.deb "$DIST"/ 2>/dev/null || true
-    rm -f /work/packages/*.buildinfo /work/packages/*.changes
+    mv "$BUILDROOT"/packages/*.deb "$DIST"/ 2>/dev/null || true
+    rm -f "$BUILDROOT"/packages/*.buildinfo "$BUILDROOT"/packages/*.changes
 }
 
 build_pkg vortex-archive-keyring all
@@ -90,7 +101,7 @@ build_pkg vortex-webui           amd64 arm64
 build_pkg vortex-openclaw        amd64 arm64
 
 echo "==> lintian"
-lintian --suppress-tags-from-file /work/packages/lintian-overrides.txt \
+lintian --suppress-tags-from-file "$BUILDROOT/packages/lintian-overrides.txt" \
     "$DIST"/*.deb || echo "WARNING: lintian findings above (non-fatal)"
 
 echo "==> built packages:"

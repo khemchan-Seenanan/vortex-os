@@ -85,30 +85,42 @@ add)
 mirror)
     load_secret; ensure_repo
     # Third-party debs vendored into OUR repo so installed machines need
-    # exactly two apt sources: Debian + Vortex. Versions pinned by mirror
-    # filter; bump deliberately.
-    declare -A MIRRORS=(
-        [caddy]="https://dl.cloudsmith.io/public/caddy/stable/deb/debian|any-version|main|caddy"
-        [nodesource]="https://deb.nodesource.com/node_22.x|nodistro|main|nodejs"
-        [tailscale]="https://pkgs.tailscale.com/stable/debian|$VORTEX_BASE_SUITE|main|tailscale"
-        [log2ram]="https://packages.azlux.fr/debian|$VORTEX_BASE_SUITE|main|log2ram"
-    )
-    declare -A KEYS=(
-        [caddy]="https://dl.cloudsmith.io/public/caddy/stable/gpg.key"
-        [nodesource]="https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key"
-        [tailscale]="https://pkgs.tailscale.com/stable/debian/$VORTEX_BASE_SUITE.noarmor.gpg"
-        [log2ram]="https://azlux.fr/repo.gpg.key"
-    )
-    for m in "${!MIRRORS[@]}"; do
-        IFS='|' read -r url dist comp pkg <<< "${MIRRORS[$m]}"
-        echo "==> mirroring $pkg from $url ($dist)"
-        curl -fsSL "${KEYS[$m]}" | gpg --batch --quiet --import || true
-        $APTLY mirror show "$m" >/dev/null 2>&1 || \
-            $APTLY mirror create -keyring="$GNUPGHOME/pubring.kbx" \
-                -filter="$pkg" -filter-with-deps=false "$m" "$url" "$dist" "$comp"
-        $APTLY mirror update -keyring="$GNUPGHOME/pubring.kbx" "$m"
-        $APTLY repo import "$m" vortex "$pkg"
-    done
+    # exactly two apt sources: Debian + Vortex. apt-get download fetches only
+    # the CURRENT version of each (an aptly mirror would pull every historical
+    # version in the upstream pool). Re-run deliberately to bump versions.
+    D=$(mktemp -d)
+    mkdir -p "$D/sources" "$D/keyrings" "$D/state/lists/partial" "$D/cache" "$D/downloads"
+
+    add_upstream() { # name url suite component keyurl
+        local key="$D/keyrings/$1.gpg" tmpkey
+        tmpkey=$(mktemp)
+        curl -fsSL "$5" -o "$tmpkey"
+        if grep -q 'BEGIN PGP' "$tmpkey"; then gpg --batch --dearmor < "$tmpkey" > "$key"
+        else cp "$tmpkey" "$key"; fi
+        rm -f "$tmpkey"
+        printf 'Types: deb\nURIs: %s\nSuites: %s\nComponents: %s\nArchitectures: amd64 arm64\nSigned-By: %s\n\n' \
+            "$2" "$3" "$4" "$key" > "$D/sources/$1.sources"
+    }
+    add_upstream caddy      https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main \
+                            https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+    add_upstream nodesource https://deb.nodesource.com/node_22.x nodistro main \
+                            https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    add_upstream tailscale  https://pkgs.tailscale.com/stable/debian "$VORTEX_BASE_SUITE" main \
+                            "https://pkgs.tailscale.com/stable/debian/$VORTEX_BASE_SUITE.noarmor.gpg"
+    add_upstream log2ram    https://packages.azlux.fr/debian "$VORTEX_BASE_SUITE" main \
+                            https://azlux.fr/repo.gpg.key
+
+    APT_OPTS=(-o Dir::Etc::SourceList=/dev/null -o "Dir::Etc::SourceParts=$D/sources"
+              -o "Dir::State=$D/state" -o "Dir::Cache=$D/cache"
+              -o APT::Architectures::=amd64 -o APT::Architectures::=arm64
+              -o Acquire::Languages=none)
+    apt-get "${APT_OPTS[@]}" update
+    ( cd "$D/downloads" && apt-get "${APT_OPTS[@]}" download \
+        caddy caddy:arm64 nodejs nodejs:arm64 tailscale tailscale:arm64 log2ram )
+
+    echo "==> vendoring: $(ls "$D/downloads")"
+    $APTLY repo add -force-replace vortex "$D/downloads"/*.deb
+    rm -rf "$D"
     republish
     ;;
 *)
