@@ -2,7 +2,7 @@
 # Memory limits are filled in by vortex-tune via vortex.slice.d/50-tuned.conf.
 [Unit]
 Description=Vortex AI workload slice
-Documentation=https://github.com/khemchan/vortex-os
+Documentation=https://github.com/khemchan-Seenanan/vortex-os
 
 [Slice]
 ManagedOOMMemoryPressure=kill

@@ -21,7 +21,7 @@ lb config noauto \
     --firmware-binary true \
     --memtest none \
     --iso-application "Vortex OS" \
-    --iso-publisher "Vortex OS - https://github.com/khemchan/vortex-os" \
+    --iso-publisher "Vortex OS - https://github.com/khemchan-Seenanan/vortex-os" \
     --iso-volume "VORTEX" \
     --bootappend-live "boot=live components quiet" \
     --bootappend-install "auto=true priority=critical file=/cdrom/install/vortex.cfg" \

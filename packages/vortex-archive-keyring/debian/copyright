@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: vortex-archive-keyring
-Source: https://github.com/khemchan/vortex-os
+Source: https://github.com/khemchan-Seenanan/vortex-os
 
 Files: *
 Copyright: 2026 Vortex OS contributors

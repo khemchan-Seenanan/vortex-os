@@ -1,6 +1,6 @@
 [Unit]
 Description=Vortex stats API and first-boot wizard backend
-Documentation=https://github.com/khemchan/vortex-os
+Documentation=https://github.com/khemchan-Seenanan/vortex-os
 After=network.target
 
 [Service]
