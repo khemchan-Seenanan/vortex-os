@@ -12,6 +12,7 @@ jobs:
       - name: Build packages + repo tree
         env:
           VORTEX_GPG_SECRET: ${{ secrets.VORTEX_GPG_SECRET }}
+          VORTEX_RELEASE: "1"   # tag builds use the bare VERSION (no +dev suffix)
         run: |
           bash packages/build-all.sh
           bash repo/publish.sh mirror

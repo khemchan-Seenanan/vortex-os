@@ -65,7 +65,9 @@ case "${1:-apply}" in
     *) echo "usage: vortex-tune [--show|--json]" >&2; exit 2 ;;
 esac
 
-is_manual() { [ -f "$1" ] && grep -qF "$SENTINEL" "$1"; }
+# Exact whole-line match: the generated headers MENTION the sentinel string
+# ("add '# vortex-tune: manual' to take ownership"), which must not trigger it.
+is_manual() { [ -f "$1" ] && grep -qxF "$SENTINEL" "$1"; }
 
 # write_if_changed <target> <content>; echoes "changed" when it rewrote the file
 write_if_changed() {

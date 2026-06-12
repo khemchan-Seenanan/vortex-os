@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge|abort-install|disappear)
+        dpkg-divert --package vortex-webui --remove --rename \
+            --divert /etc/caddy/Caddyfile.caddy-dist /etc/caddy/Caddyfile || true
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

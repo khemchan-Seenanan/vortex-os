@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# The caddy package ships its own /etc/caddy/Caddyfile; Vortex owns that path.
+# Divert caddy's copy aside so both packages coexist and upgrades never clash.
+case "$1" in
+    install|upgrade)
+        dpkg-divert --package vortex-webui --add --rename \
+            --divert /etc/caddy/Caddyfile.caddy-dist /etc/caddy/Caddyfile
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -23,8 +23,8 @@ EOF
 apt-get update -qq
 
 echo "=== installing the full Vortex stack"
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    vortex-core vortex-webui vortex-openclaw vortex-firstboot >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    vortex-core vortex-webui vortex-openclaw vortex-firstboot 2>&1 | tail -n 60
 
 echo "=== asserting"
 grep -q '^ID=vortex' /etc/os-release            || fail "os-release ID"
@@ -48,6 +48,15 @@ printf '# vortex-tune: manual\nALGO=lz4\n' > /etc/default/zramswap
 /usr/sbin/vortex-tune >/dev/null
 grep -q 'ALGO=lz4' /etc/default/zramswap         || fail "manual sentinel not honored"
 ok "manual-edit sentinel honored"
+
+# Files WITHOUT the sentinel must keep re-tuning (RAM can change in VMs); the
+# generated header mentions the sentinel string and must not self-trigger.
+VORTEX_TUNE_MEM_KB=$((1024*1024))  /usr/sbin/vortex-tune >/dev/null
+grep -q 'vm.swappiness = 180' /etc/sysctl.d/99-vortex-memory.conf || fail "1GB retune did not apply"
+VORTEX_TUNE_MEM_KB=$((16384*1024)) /usr/sbin/vortex-tune >/dev/null
+grep -q 'vm.swappiness = 100' /etc/sysctl.d/99-vortex-memory.conf || fail "16GB retune did not apply (sentinel false-positive?)"
+grep -q 'ALGO=lz4' /etc/default/zramswap || fail "sentinel file was clobbered by retune"
+ok "re-tunes on RAM change; sentinel files still untouched"
 
 [ -x /opt/openclaw/node_modules/.bin/openclaw ]  || fail "openclaw entrypoint"
 v=$(node /opt/openclaw/node_modules/openclaw/openclaw.mjs --version 2>/dev/null || true)

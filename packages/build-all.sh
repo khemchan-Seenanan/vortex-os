@@ -36,6 +36,14 @@ tar -C "$SRC" \
     -cf - . | tar -C "$BUILDROOT" -xf -
 cd "$BUILDROOT"
 VERSION=$(cat VERSION)
+# Published apt repos are immutable per version: rebuilding identical version
+# numbers with different bytes breaks publishing (and users' trust). Dev
+# iterations get a +dev timestamp suffix that sorts ABOVE the base version;
+# CI release builds set VORTEX_RELEASE=1 to use the bare VERSION.
+if [ "${VORTEX_RELEASE:-0}" != 1 ]; then
+    VERSION="$VERSION+dev$(date -u +%Y%m%d%H%M%S)"
+    echo "==> dev build: packaging as version $VERSION"
+fi
 . branding/identity.env
 
 DIST=/work/dist/debs
