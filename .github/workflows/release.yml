@@ -14,9 +14,14 @@ jobs:
           VORTEX_GPG_SECRET: ${{ secrets.VORTEX_GPG_SECRET }}
           VORTEX_RELEASE: "1"   # tag builds use the bare VERSION (no +dev suffix)
         run: |
+          [ -n "$VORTEX_GPG_SECRET" ] || { echo "VORTEX_GPG_SECRET secret is empty"; exit 1; }
+          install -m 700 -d repo/keys
+          umask 077
+          printf '%s\n' "$VORTEX_GPG_SECRET" > repo/keys/vortex-archive-secret.asc
           bash packages/build-all.sh
           bash repo/publish.sh mirror
           bash repo/publish.sh add dist/debs/*.deb
+          rm -f repo/keys/vortex-archive-secret.asc
       - uses: actions/upload-artifact@v4
         with: { name: debs, path: dist/debs, if-no-files-found: error }
       - uses: actions/upload-artifact@v4

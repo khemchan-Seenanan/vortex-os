@@ -46,8 +46,16 @@ jobs:
           # The armored private key lives ONLY in this secret. Never echo it.
           VORTEX_GPG_SECRET: ${{ secrets.VORTEX_GPG_SECRET }}
         run: |
+          # Materialize the key at the path publish.sh reads (bind-mounted
+          # into the builder container) — env-var passthrough into docker
+          # proved flaky. File is on the ephemeral runner only.
+          [ -n "$VORTEX_GPG_SECRET" ] || { echo "VORTEX_GPG_SECRET secret is empty"; exit 1; }
+          install -m 700 -d repo/keys
+          umask 077
+          printf '%s\n' "$VORTEX_GPG_SECRET" > repo/keys/vortex-archive-secret.asc
           bash repo/publish.sh mirror
           bash repo/publish.sh add dist/debs/*.deb
+          rm -f repo/keys/vortex-archive-secret.asc
 
       - name: Deploy repo tree (GitHub Pages branch of vortex-repo)
         env:
