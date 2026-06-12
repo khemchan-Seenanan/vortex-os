@@ -51,13 +51,19 @@ jobs:
 
       - name: Deploy repo tree (GitHub Pages branch of vortex-repo)
         env:
-          REPO_DEPLOY_TOKEN: ${{ secrets.REPO_DEPLOY_TOKEN }}
+          # Deploy key scoped to the vortex-repo repository only.
+          REPO_DEPLOY_SSH_KEY: ${{ secrets.REPO_DEPLOY_SSH_KEY }}
         run: |
-          [ -n "$REPO_DEPLOY_TOKEN" ] || { echo "REPO_DEPLOY_TOKEN unset — skipping deploy"; exit 0; }
+          [ -n "$REPO_DEPLOY_SSH_KEY" ] || { echo "REPO_DEPLOY_SSH_KEY unset — skipping deploy"; exit 0; }
+          mkdir -p ~/.ssh
+          printf '%s' "$REPO_DEPLOY_SSH_KEY" > ~/.ssh/vortex_deploy
+          chmod 600 ~/.ssh/vortex_deploy
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/vortex_deploy -o IdentitiesOnly=yes"
           cd repo/public
           git init -q -b main
           git config user.name vortex-ci
           git config user.email khemchanseenanan@gmail.com
           git add -A
           git commit -qm "publish $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${REPO_DEPLOY_TOKEN}@github.com/${{ github.repository_owner }}/vortex-repo.git" main:gh-pages
+          git push -f "git@github.com:${{ github.repository_owner }}/vortex-repo.git" main:gh-pages
