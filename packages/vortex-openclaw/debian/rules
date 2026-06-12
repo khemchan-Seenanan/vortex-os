@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+# vortex-openclaw: vendors the pinned OpenClaw npm release into /opt/openclaw
+# at package build time (needs network once, at build — installs are offline).
+# Cross-arch: npm's --os/--cpu flags select platform-specific optional deps.
+
+include /usr/share/dpkg/architecture.mk
+
+DESTROOT := debian/vortex-openclaw
+
+# DEB_HOST_ARCH → npm --cpu value
+NPMCPU_amd64 := x64
+NPMCPU_arm64 := arm64
+NPMCPU := $(NPMCPU_$(DEB_HOST_ARCH))
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	test -n "$(NPMCPU)" || { echo "unsupported arch $(DEB_HOST_ARCH)"; exit 1; }
+	rm -rf staging
+	mkdir -p staging/opt/openclaw
+	cp app/package.json staging/opt/openclaw/
+	cd staging/opt/openclaw && npm install --omit=dev --no-audit --no-fund \
+		--os=linux --cpu=$(NPMCPU) --libc=glibc
+	# determinism check: the pinned version must be what got installed
+	grep -q '"version": "2026.6.6"' staging/opt/openclaw/node_modules/openclaw/package.json
+
+override_dh_auto_install:
+	mkdir -p $(DESTROOT)
+	cp -a files/. $(DESTROOT)/
+	mkdir -p $(DESTROOT)/opt
+	cp -a staging/opt/openclaw $(DESTROOT)/opt/
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf staging
+
+# Vendored node_modules: skip slow/noisy dh steps that don't apply
+override_dh_strip:
+override_dh_dwz:
+override_dh_strip_nondeterminism:
+override_dh_shlibdeps:

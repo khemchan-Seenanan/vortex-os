@@ -1,0 +1,45 @@
+# Vortex OS — single TLS entry point on 443.
+# Everything internal binds to 127.0.0.1; only Caddy faces the network.
+# OPENCLAW_GATEWAY_PORT comes from /etc/vortex/openclaw.env via a systemd
+# drop-in on caddy.service (one source of truth, written by vortex-tune).
+
+{
+	admin off
+	local_certs
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}
+
+:443 {
+	tls internal {
+		on_demand
+	}
+	encode zstd gzip
+
+	# Cockpit (UrlRoot=/system — prefix is NOT stripped)
+	handle /system/* {
+		reverse_proxy 127.0.0.1:9090
+	}
+
+	# OpenClaw gateway UI
+	handle_path /claw/* {
+		reverse_proxy 127.0.0.1:{$OPENCLAW_GATEWAY_PORT:18789}
+	}
+
+	# Stats API + first-boot wizard (vortex-stats daemon)
+	handle /api/stats {
+		rewrite * /stats
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /setup* {
+		reverse_proxy 127.0.0.1:8090
+	}
+
+	# Landing page
+	handle {
+		root * /opt/vortex/www
+		file_server
+	}
+}

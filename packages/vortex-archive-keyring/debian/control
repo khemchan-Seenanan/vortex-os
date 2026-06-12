@@ -1,0 +1,15 @@
+Source: vortex-archive-keyring
+Section: admin
+Priority: optional
+Maintainer: Vortex OS <khemchanseenanan@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: vortex-archive-keyring
+Architecture: all
+Depends: ${misc:Depends}
+Description: GnuPG archive keyring and apt source for the Vortex OS repository
+ Ships the public GPG key used to sign the Vortex OS apt repository and a
+ deb822 sources entry pinned to that key, so a machine trusts exactly one
+ additional archive: the Vortex repo.

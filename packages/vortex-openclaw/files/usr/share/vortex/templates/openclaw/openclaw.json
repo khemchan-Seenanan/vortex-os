@@ -1,0 +1,22 @@
+{
+  "gateway": {
+    "port": 18789
+  },
+  "models": {
+    "providers": {
+      "anthropic": {
+        "apiKey": { "source": "env", "id": "ANTHROPIC_API_KEY" }
+      },
+      "openai": {
+        "apiKey": { "source": "env", "id": "OPENAI_API_KEY" }
+      }
+    }
+  },
+  "cron": {
+    "maxConcurrentRuns": 1,
+    "sessionRetention": "24h"
+  },
+  "logging": {
+    "level": "info"
+  }
+}

@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+DESTROOT := debian/vortex-firstboot
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	mkdir -p $(DESTROOT)
+	cp -a files/. $(DESTROOT)/
+	chmod 0755 $(DESTROOT)/usr/sbin/vortex-firstboot \
+		$(DESTROOT)/usr/sbin/vortex-setup-apply \
+		$(DESTROOT)/usr/sbin/vortex-setup
+
+override_dh_fixperms:
+	dh_fixperms
+	chmod 0755 $(DESTROOT)/usr/sbin/vortex-firstboot \
+		$(DESTROOT)/usr/sbin/vortex-setup-apply \
+		$(DESTROOT)/usr/sbin/vortex-setup

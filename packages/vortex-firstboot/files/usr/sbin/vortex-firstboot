@@ -1,0 +1,80 @@
+#!/bin/bash
+# Vortex OS first-boot preparation. Runs every boot until /etc/vortex/.initialized
+# exists. Idempotent. Logs to /var/log/vortex-firstboot.log — NEVER log secrets.
+set -uo pipefail
+
+LOG=/var/log/vortex-firstboot.log
+RUNDIR=/run/vortex-setup
+log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$LOG"; }
+
+log "vortex-firstboot starting"
+
+# --- 1. SSH host keys (images ship without them) ---------------------------
+if ! ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; then
+    log "generating SSH host keys"
+    ssh-keygen -A
+    systemctl try-restart ssh.service || true
+fi
+
+# --- 2. Grow root filesystem when free space follows the partition ---------
+# cloud-init owns growth when it is in charge (VM images); detect, don't assume.
+if [ -d /run/cloud-init ] && [ ! -f /run/cloud-init/disabled ]; then
+    log "cloud-init present — leaving filesystem growth to it"
+elif command -v growpart >/dev/null 2>&1; then
+    rootsrc=$(findmnt -n -o SOURCE /) || rootsrc=""
+    case "$rootsrc" in
+        /dev/*p[0-9]) dev=${rootsrc%p[0-9]}; part=${rootsrc##*p} ;;
+        /dev/*[0-9])  dev=$(echo "$rootsrc" | sed 's/[0-9]*$//'); part=$(echo "$rootsrc" | grep -o '[0-9]*$') ;;
+        *) dev=""; part="" ;;
+    esac
+    if [ -n "$dev" ] && [ -b "$dev" ]; then
+        out=$(growpart "$dev" "$part" 2>&1)
+        case "$out" in
+            CHANGED*) log "grew $rootsrc"; resize2fs "$rootsrc" >>"$LOG" 2>&1 || true ;;
+            NOCHANGE*) ;; # already full size
+            *) log "growpart skipped: $out" ;;
+        esac
+    fi
+fi
+
+# --- 3. One-time setup code + temporary password-auth window ---------------
+mkdir -p "$RUNDIR"; chgrp vortex-setup "$RUNDIR" 2>/dev/null || true; chmod 0770 "$RUNDIR"
+if [ ! -s "$RUNDIR/code" ]; then
+    code=$(tr -dc 'A-HJ-NP-Z2-9' </dev/urandom | head -c6)
+    printf '%s\n' "$code" > "$RUNDIR/code"
+    chgrp vortex-setup "$RUNDIR/code" 2>/dev/null || true
+    chmod 0640 "$RUNDIR/code"
+else
+    code=$(cat "$RUNDIR/code")
+fi
+
+# Allow password SSH only until a key is enrolled (the applier removes this).
+if [ ! -s /home/vortex/.ssh/authorized_keys ]; then
+    if [ ! -f /etc/ssh/sshd_config.d/05-vortex-firstboot.conf ]; then
+        printf '# Temporary: removed automatically when an SSH key is enrolled.\nPasswordAuthentication yes\n' \
+            > /etc/ssh/sshd_config.d/05-vortex-firstboot.conf
+        systemctl try-restart ssh.service || true
+        log "temporary password-auth window opened"
+    fi
+fi
+
+# --- 4. Tell the human where to go -----------------------------------------
+ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
+mkdir -p /etc/issue.d
+cat > /etc/issue.d/50-vortex.issue <<EOF
+
+  ┌─────────────────────────────────────────────────────────┐
+   Vortex OS — first boot
+   Finish setup in a browser:  https://${ip:-<this-machine>}/setup
+                               https://vortex.local/setup
+   Setup code: ${code}
+   (or run 'sudo vortex-setup' right here on the console)
+  └─────────────────────────────────────────────────────────┘
+
+EOF
+# Also paint tty1 right now (issue files only show on next getty redraw).
+if [ -w /dev/tty1 ]; then
+    cat /etc/issue.d/50-vortex.issue > /dev/tty1 || true
+fi
+
+log "ready — setup code issued (not logged), ip=${ip:-none}"

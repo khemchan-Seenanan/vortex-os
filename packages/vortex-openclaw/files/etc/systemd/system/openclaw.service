@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenClaw AI Agent (Vortex)
+Documentation=https://docs.openclaw.ai
+After=network-online.target vortex-tune.service
+Wants=network-online.target
+
+[Service]
+User=vortex
+# The cgroup cage — memory limits are tuned per-machine by vortex-tune.
+Slice=vortex.slice
+# openclaw.env: NODE_OPTIONS heap cap + gateway port (written by vortex-tune).
+# openclaw-secrets.env: provider API keys (written by the first-boot wizard).
+EnvironmentFile=-/etc/vortex/openclaw.env
+EnvironmentFile=-/etc/vortex/openclaw-secrets.env
+ExecStart=/opt/openclaw/node_modules/.bin/openclaw gateway
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/vortex/.openclaw
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

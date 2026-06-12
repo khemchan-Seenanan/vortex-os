@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vortex OS — First-boot setup</title>
+<style>
+:root{--bg:#0b0e14;--card:#131825;--ink:#dbe2f0;--mut:#7c869c;--acc:#5eead4;--err:#f87171}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:15px/1.5 ui-monospace,Consolas,monospace;display:flex;justify-content:center;padding:3rem 1rem}
+main{width:100%;max-width:560px}h1{font-size:1.4rem;letter-spacing:.35em;color:var(--acc);text-align:center}
+p.sub{color:var(--mut);text-align:center;margin-bottom:2rem}
+form{background:var(--card);border:1px solid #1f2738;border-radius:12px;padding:1.5rem}
+label{display:block;margin:1rem 0 .3rem;color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.1em}
+input,textarea{width:100%;background:#0d1220;color:var(--ink);border:1px solid #283149;
+border-radius:6px;padding:.6rem .7rem;font:inherit}textarea{height:4.5rem;resize:vertical}
+input:focus,textarea:focus{outline:none;border-color:var(--acc)}
+small{color:var(--mut)}
+button{margin-top:1.5rem;width:100%;padding:.8rem;border:0;border-radius:8px;background:var(--acc);
+color:#06251f;font:inherit;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:wait}
+#msg{margin-top:1rem;text-align:center}#msg.err{color:var(--err)}#msg.ok{color:var(--acc)}
+</style></head><body><main>
+<h1>VORTEX</h1><p class="sub">first-boot setup — this wizard disables itself when done</p>
+<form id="f">
+  <label>Setup code (shown on the machine's console)</label>
+  <input name="code" required autocomplete="off" placeholder="e.g. K7Q2XN">
+  <label>Password for user “vortex” (web console &amp; sudo)</label>
+  <input name="password" type="password" required minlength="8">
+  <label>SSH public key <small>— password SSH turns off once set</small></label>
+  <textarea name="ssh_key" placeholder="ssh-ed25519 AAAA... you@laptop"></textarea>
+  <label>Anthropic API key <small>(optional)</small></label>
+  <input name="anthropic" autocomplete="off" placeholder="sk-ant-...">
+  <label>OpenAI API key <small>(optional)</small></label>
+  <input name="openai" autocomplete="off" placeholder="sk-...">
+  <label>Timezone</label>
+  <input name="timezone" value="America/Guyana">
+  <label>Tailscale auth key <small>(optional — joins your tailnet)</small></label>
+  <input name="tailscale_key" autocomplete="off" placeholder="tskey-auth-...">
+  <button id="go">Initialize Vortex</button>
+  <div id="msg"></div>
+</form>
+<script>
+const f=document.getElementById('f'),m=document.getElementById('msg'),b=document.getElementById('go');
+f.addEventListener('submit',async e=>{
+  e.preventDefault();b.disabled=true;m.className='';m.textContent='Applying… this can take a few minutes.';
+  const d=Object.fromEntries(new FormData(f));
+  const api_keys={};if(d.anthropic)api_keys.ANTHROPIC_API_KEY=d.anthropic.trim();
+  if(d.openai)api_keys.OPENAI_API_KEY=d.openai.trim();
+  try{
+    const r=await fetch('/setup/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:d.code,password:d.password,ssh_key:d.ssh_key.trim(),
+        api_keys,timezone:d.timezone,tailscale_key:d.tailscale_key.trim()})});
+    const j=await r.json().catch(()=>({error:'unexpected response'}));
+    if(r.ok&&!j.error){m.className='ok';
+      m.textContent='Done! OpenClaw is starting. Redirecting to the dashboard…';
+      setTimeout(()=>location.href='/',4000);
+    }else{m.className='err';m.textContent=j.error||('setup failed (HTTP '+r.status+')');b.disabled=false;}
+  }catch(err){m.className='err';m.textContent='network error: '+err;b.disabled=false;}
+});
+</script></main></body></html>

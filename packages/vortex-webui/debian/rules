@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+# vortex-webui: config tree + the Go stats daemon, cross-compiled per arch
+# (CGO_ENABLED=0 — pure-Go static binary, no cross toolchain needed).
+
+include /usr/share/dpkg/architecture.mk
+
+DESTROOT := debian/vortex-webui
+STATS_SRC := $(CURDIR)/../../tools/stats-daemon
+
+# DEB_HOST_ARCH → GOARCH (only the two we ship)
+GOARCH_amd64 := amd64
+GOARCH_arm64 := arm64
+GOARCH := $(GOARCH_$(DEB_HOST_ARCH))
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	test -n "$(GOARCH)" || { echo "unsupported arch $(DEB_HOST_ARCH)"; exit 1; }
+	cd $(STATS_SRC) && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) \
+		go build -trimpath -ldflags='-s -w' -o $(CURDIR)/vortex-stats-bin .
+
+override_dh_auto_install:
+	mkdir -p $(DESTROOT)
+	cp -a files/. $(DESTROOT)/
+	install -D -m0755 vortex-stats-bin $(DESTROOT)/usr/bin/vortex-stats
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -f vortex-stats-bin
+
+# Static Go binary: skip dwz/strip complaints from dh defaults
+override_dh_dwz:
+override_dh_strip:

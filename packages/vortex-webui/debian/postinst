@@ -1,0 +1,31 @@
+#!/bin/sh
+set -e
+
+have_systemd() { [ -d /run/systemd/system ]; }
+
+case "$1" in
+    configure)
+        # Create the vortex-setup group now (sysusers normally runs at boot;
+        # inside chroots/image builds we want it immediately).
+        if command -v systemd-sysusers >/dev/null 2>&1; then
+            systemd-sysusers vortex-webui.conf || true
+        fi
+
+        # Socket-activated Cockpit only — cockpit.service must never be enabled.
+        systemctl enable cockpit.socket >/dev/null 2>&1 || true
+        systemctl disable cockpit.service >/dev/null 2>&1 || true
+        systemctl enable vortex-stats.service >/dev/null 2>&1 || true
+        systemctl enable caddy.service >/dev/null 2>&1 || true
+
+        if have_systemd; then
+            systemctl daemon-reload || true
+            systemctl restart cockpit.socket || true
+            systemctl restart vortex-stats.service || true
+            systemctl restart caddy.service || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

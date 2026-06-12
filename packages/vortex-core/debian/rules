@@ -1,0 +1,39 @@
+#!/usr/bin/make -f
+# vortex-core build: stage the files/ tree, pull branding from ../../branding,
+# and generate the os-release / vortex-release payloads from identity.env.
+
+IDENTITY := $(CURDIR)/../../branding/identity.env
+VERSION  := $(shell cat $(CURDIR)/../../VERSION)
+VER_MM   := $(shell cut -d. -f1,2 $(CURDIR)/../../VERSION)
+DESTROOT := debian/vortex-core
+
+NAME      := $(shell . $(IDENTITY) && echo $$VORTEX_NAME)
+ID        := $(shell . $(IDENTITY) && echo $$VORTEX_ID)
+CODEPRETTY:= $(shell . $(IDENTITY) && echo $$VORTEX_CODENAME_PRETTY)
+HOME_URL  := $(shell . $(IDENTITY) && echo $$VORTEX_HOME_URL)
+SUPPORT   := $(shell . $(IDENTITY) && echo $$VORTEX_SUPPORT_URL)
+BUGS      := $(shell . $(IDENTITY) && echo $$VORTEX_BUG_URL)
+SUITE     := $(shell . $(IDENTITY) && echo $$VORTEX_BASE_SUITE)
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	mkdir -p $(DESTROOT)
+	cp -a files/. $(DESTROOT)/
+	chmod 0755 $(DESTROOT)/usr/sbin/vortex-tune $(DESTROOT)/usr/sbin/vortex-slim \
+		$(DESTROOT)/etc/update-motd.d/10-vortex
+	install -D -m0644 ../../branding/vortex.ascii $(DESTROOT)/usr/share/vortex/vortex.ascii
+	# /usr/share/vortex/os-release — copied over /etc/os-release by postinst.
+	mkdir -p $(DESTROOT)/usr/share/vortex
+	printf 'NAME="%s"\nVERSION="%s (%s)"\nID=%s\nID_LIKE=debian\nPRETTY_NAME="%s %s (%s)"\nVERSION_ID="%s"\nVERSION_CODENAME=%s\nHOME_URL="%s"\nSUPPORT_URL="%s"\nBUG_REPORT_URL="%s"\n' \
+		"$(NAME)" "$(VER_MM)" "$(CODEPRETTY)" "$(ID)" "$(NAME)" "$(VER_MM)" "$(CODEPRETTY)" "$(VER_MM)" "$(SUITE)" "$(HOME_URL)" "$(SUPPORT)" "$(BUGS)" \
+		> $(DESTROOT)/usr/share/vortex/os-release
+	printf 'VORTEX_VERSION=%s\nVORTEX_CODENAME=%s\nVORTEX_BASE=debian-%s\nVORTEX_BUILD_DATE=%s\n' \
+		"$(VERSION)" "$(CODEPRETTY)" "$(SUITE)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		> $(DESTROOT)/usr/share/vortex/vortex-release
+
+override_dh_fixperms:
+	dh_fixperms
+	chmod 0755 $(DESTROOT)/usr/sbin/vortex-tune $(DESTROOT)/usr/sbin/vortex-slim \
+		$(DESTROOT)/etc/update-motd.d/10-vortex

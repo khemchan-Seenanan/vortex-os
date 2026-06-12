@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+# Builds the keyring package. The public key is provided by the build driver
+# (packages/build-all.sh) via $(VORTEX_KEYRING_PUB); the repo URL and suite
+# come from branding/identity.env. The private key never touches this build.
+
+IDENTITY := $(CURDIR)/../../branding/identity.env
+REPO_URL := $(shell . $(IDENTITY) && echo $$VORTEX_REPO_URL)
+SUITE    := $(shell . $(IDENTITY) && echo $$VORTEX_BASE_SUITE)
+DESTROOT := debian/vortex-archive-keyring
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	test -n "$(VORTEX_KEYRING_PUB)" || { echo "VORTEX_KEYRING_PUB not set (path to binary GPG public keyring)"; exit 1; }
+	install -D -m0644 "$(VORTEX_KEYRING_PUB)" $(DESTROOT)/usr/share/keyrings/vortex-archive-keyring.gpg
+	mkdir -p $(DESTROOT)/etc/apt/sources.list.d
+	printf 'Types: deb\nURIs: %s\nSuites: %s\nComponents: main\nSigned-By: /usr/share/keyrings/vortex-archive-keyring.gpg\n' \
+		"$(REPO_URL)" "$(SUITE)" > $(DESTROOT)/etc/apt/sources.list.d/vortex.sources

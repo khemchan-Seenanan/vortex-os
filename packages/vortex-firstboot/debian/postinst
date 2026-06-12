@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if command -v systemd-sysusers >/dev/null 2>&1; then
+            systemd-sysusers vortex-firstboot.conf || true
+        fi
+        systemctl enable vortex-firstboot.service >/dev/null 2>&1 || true
+        systemctl enable vortex-setup-apply.path >/dev/null 2>&1 || true
+        if [ -d /run/systemd/system ]; then
+            systemd-tmpfiles --create vortex-firstboot.conf || true
+            systemctl daemon-reload || true
+            systemctl start vortex-setup-apply.path || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

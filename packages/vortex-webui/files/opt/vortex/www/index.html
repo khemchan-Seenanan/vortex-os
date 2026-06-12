@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vortex OS</title>
+<link rel="stylesheet" href="/vortex.css">
+</head><body>
+<main>
+  <header>
+    <h1>VORTEX</h1>
+    <p id="sub">the AI agent operating system</p>
+  </header>
+
+  <div id="setup-banner" hidden>
+    <a href="/setup/">⚡ This machine is not set up yet — run the first-boot wizard</a>
+  </div>
+
+  <section class="cards">
+    <a class="card" href="/system/">
+      <h2>System</h2>
+      <p>Cockpit console — services, storage, network, terminal</p>
+    </a>
+    <a class="card" href="/claw/">
+      <h2>OpenClaw</h2>
+      <p>Your AI agent gateway — chat surfaces &amp; sessions</p>
+    </a>
+  </section>
+
+  <section class="tiles">
+    <div class="tile"><span class="k">RAM</span><span class="v" id="t-ram">—</span></div>
+    <div class="tile"><span class="k">zram</span><span class="v" id="t-zram">—</span></div>
+    <div class="tile"><span class="k">CPU temp</span><span class="v" id="t-temp">—</span></div>
+    <div class="tile"><span class="k">uptime</span><span class="v" id="t-up">—</span></div>
+    <div class="tile"><span class="k">OpenClaw</span><span class="v" id="t-claw">—</span></div>
+    <div class="tile"><span class="k">profile</span><span class="v" id="t-prof">—</span></div>
+  </section>
+
+  <footer id="foot">Vortex OS</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+'d ':'')+(h?h+'h ':'')+m+'m';}
+async function tick(){
+  try{
+    const s=await (await fetch('/api/stats',{cache:'no-store'})).json();
+    $('t-ram').textContent=s.mem.used_mb+' / '+s.mem.total_mb+' MB';
+    $('t-zram').textContent=s.zram.active?(s.zram.ratio?s.zram.ratio.toFixed(1)+'x':'idle'):'off';
+    $('t-temp').textContent=s.temp_c==null?'n/a':s.temp_c.toFixed(1)+'°C';
+    $('t-up').textContent=fmtUp(s.uptime_sec);
+    const claw=$('t-claw');claw.textContent=s.openclaw;
+    claw.className='v '+(s.openclaw==='active'?'ok':s.openclaw==='failed'?'bad':'mut');
+    $('t-prof').textContent=s.profile?s.profile.tier+' · zram '+s.profile.zram_percent+'%':'—';
+    $('foot').textContent='Vortex OS '+s.version+' · '+s.hostname;
+    $('setup-banner').hidden=s.initialized;
+  }catch(e){/* offline tick — keep last values */}
+}
+tick();setInterval(tick,5000);
+</script>
+</body></html>

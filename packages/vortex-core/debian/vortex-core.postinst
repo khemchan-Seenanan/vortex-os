@@ -1,0 +1,63 @@
+#!/bin/sh
+set -e
+
+# Live systemd present? (false inside image-build chroots)
+have_systemd() { [ -d /run/systemd/system ]; }
+
+case "$1" in
+    configure)
+        # --- branding -----------------------------------------------------
+        # /etc/os-release is normally a symlink to /usr/lib/os-release (owned
+        # by base-files). Replace it with a real file so base-files upgrades
+        # do not undo the Vortex identity; /usr/lib/os-release stays Debian's.
+        if [ -L /etc/os-release ] || [ -f /etc/os-release ]; then
+            rm -f /etc/os-release
+        fi
+        cp /usr/share/vortex/os-release /etc/os-release
+        cp /usr/share/vortex/vortex-release /etc/vortex-release
+
+        # Default hostname, only when the machine still has a generic one.
+        if [ -f /etc/hostname ]; then
+            case "$(cat /etc/hostname)" in
+                debian|raspberrypi|localhost)
+                    echo vortex > /etc/hostname
+                    if have_systemd; then hostnamectl set-hostname vortex || true; fi
+                    ;;
+            esac
+        fi
+
+        # Vortex MOTD replaces the stock Debian one.
+        : > /etc/motd
+        [ -x /etc/update-motd.d/10-uname ] && chmod -x /etc/update-motd.d/10-uname || true
+
+        # --- services -----------------------------------------------------
+        # systemctl enable only creates symlinks, so it is chroot-safe.
+        systemctl enable vortex-tune.service >/dev/null 2>&1 || true
+        systemctl enable systemd-oomd.service >/dev/null 2>&1 || true
+
+        # --- firewall rules (NOT enabled here — firstboot enables ufw; ----
+        # enabling inside a chroot can lock builders out).
+        if command -v ufw >/dev/null 2>&1; then
+            ufw default deny incoming >/dev/null 2>&1 || true
+            ufw default allow outgoing >/dev/null 2>&1 || true
+            ufw allow 22/tcp  >/dev/null 2>&1 || true
+            ufw allow 443/tcp >/dev/null 2>&1 || true
+        fi
+
+        # --- initial tune ---------------------------------------------------
+        # Generates zram/sysctl/slice/env config. Inside chroots it sizes from
+        # the build host's RAM; vortex-tune.service re-sizes on first real boot.
+        /usr/sbin/vortex-tune || true
+
+        if have_systemd; then
+            systemctl daemon-reload || true
+            systemctl restart systemd-sysctl.service || true
+            systemctl try-restart ssh.service fail2ban.service systemd-resolved.service || true
+            systemctl start vortex-tune.service || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

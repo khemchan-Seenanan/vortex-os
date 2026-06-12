@@ -1,0 +1,49 @@
+#!/bin/bash
+# vortex-slim — strip desktop/printing/bluetooth cruft and shrink the footprint.
+# Run by all three image pipelines at build time; safe for users to run anytime.
+set -uo pipefail
+
+PURGE_PKGS=(triggerhappy modemmanager bluez "cups*" avahi-daemon nfs-common rpcbind)
+MASK_UNITS=(bluetooth.service hciuart.service)
+EXCLUDES=/etc/dpkg/dpkg.cfg.d/vortex-slim
+
+echo "vortex-slim: purging unneeded packages..."
+to_purge=()
+for p in "${PURGE_PKGS[@]}"; do
+    # expand globs like cups* against the installed package list
+    while read -r inst; do to_purge+=("$inst"); done \
+        < <(dpkg-query -W -f='${Package} ${db:Status-Abbrev}\n' "$p" 2>/dev/null | awk '$2 ~ /^.i/{print $1}')
+done
+if [ ${#to_purge[@]} -gt 0 ]; then
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y "${to_purge[@]}" || true
+fi
+
+echo "vortex-slim: masking radio services..."
+for u in "${MASK_UNITS[@]}"; do
+    systemctl mask "$u" >/dev/null 2>&1 || true
+done
+
+echo "vortex-slim: installing dpkg path excludes (man/docs/locales, en kept)..."
+cat > "$EXCLUDES" <<'EOF'
+# Vortex OS slim profile: future package installs skip docs/man/locales.
+path-exclude=/usr/share/man/*
+path-exclude=/usr/share/doc/*
+path-include=/usr/share/doc/*/copyright
+path-include=/usr/share/doc/*/changelog.Debian.gz
+path-exclude=/usr/share/locale/*
+path-include=/usr/share/locale/en*
+path-include=/usr/share/locale/locale.alias
+path-exclude=/usr/share/info/*
+EOF
+
+echo "vortex-slim: removing already-installed docs/man/locales..."
+find /usr/share/man -mindepth 1 ! -name 'copyright' -delete 2>/dev/null || true
+find /usr/share/info -mindepth 1 -delete 2>/dev/null || true
+find /usr/share/doc -mindepth 2 ! -name 'copyright' ! -name 'changelog.Debian.gz' -delete 2>/dev/null || true
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' ! -name 'locale.alias' -exec rm -rf {} + 2>/dev/null || true
+
+echo "vortex-slim: autoremoving orphans..."
+DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y || true
+apt-get clean
+
+echo "vortex-slim: done."

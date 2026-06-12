@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # The service user. Pipelines normally create it (pi-gen / preseed /
+        # cloud-init); this is the safety net for plain `apt install`.
+        if ! getent passwd vortex >/dev/null; then
+            useradd --create-home --shell /bin/bash vortex
+        fi
+        install -d -o vortex -g vortex -m 0700 /home/vortex/.openclaw
+
+        # Ships disabled by design — vortex-firstboot enables it after the
+        # wizard has collected API keys. Only reload units here.
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

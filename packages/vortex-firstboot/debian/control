@@ -1,0 +1,24 @@
+Source: vortex-firstboot
+Section: admin
+Priority: optional
+Maintainer: Vortex OS <khemchanseenanan@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: vortex-firstboot
+Architecture: all
+Depends: ${misc:Depends},
+ vortex-core,
+ vortex-webui,
+ vortex-openclaw,
+ jq,
+ whiptail,
+ cloud-guest-utils,
+ e2fsprogs
+Description: Vortex OS first-boot wizard (web and console)
+ Regenerates SSH host keys, grows the root filesystem, issues a one-time
+ setup code on the console, and applies the wizard payload (password, SSH
+ key, AI provider keys, timezone, optional Tailscale) via a root-side
+ systemd path unit — the web-facing daemon stays unprivileged. Enables
+ openclaw.service and ufw, then disables itself.

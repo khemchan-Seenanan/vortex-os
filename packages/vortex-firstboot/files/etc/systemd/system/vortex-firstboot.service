@@ -1,0 +1,15 @@
+[Unit]
+Description=Vortex OS first-boot preparation (host keys, growfs, setup code)
+Documentation=https://github.com/khemchan/vortex-os
+ConditionPathExists=!/etc/vortex/.initialized
+After=network-online.target vortex-tune.service systemd-tmpfiles-setup.service
+Wants=network-online.target
+Before=openclaw.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/vortex-firstboot
+
+[Install]
+WantedBy=multi-user.target

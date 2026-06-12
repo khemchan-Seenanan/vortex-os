@@ -1,0 +1,21 @@
+Source: vortex-webui
+Section: admin
+Priority: optional
+Maintainer: Vortex OS <khemchanseenanan@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.21~) | golang-1.21
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: vortex-webui
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends},
+ vortex-core,
+ caddy,
+ cockpit-system,
+ cockpit-storaged,
+ cockpit-networkmanager
+Description: Vortex OS web management UI
+ Caddy as the single TLS entry point on 443, Cockpit (socket-activated,
+ localhost-only) under /system/, the OpenClaw gateway under /claw/, a static
+ dark landing page, and the vortex-stats daemon serving live system stats
+ and the first-boot wizard backend on localhost:8090.

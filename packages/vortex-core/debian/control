@@ -1,0 +1,33 @@
+Source: vortex-core
+Section: admin
+Priority: optional
+Maintainer: Vortex OS <khemchanseenanan@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: vortex-core
+Architecture: all
+Depends: ${misc:Depends},
+ zram-tools,
+ systemd-oomd,
+ systemd-resolved,
+ fail2ban,
+ python3-systemd,
+ ufw,
+ openssh-server,
+ procps
+Suggests: vortex-core-sdcard
+Description: Vortex OS identity, adaptive memory stack and hardening
+ The heart of Vortex OS: os-release branding, MOTD, the vortex-tune
+ self-sizing memory engine (zram + sysctl + vortex.slice cgroup limits +
+ Node heap sizing), systemd-oomd pressure-kill policy, journald caps,
+ SSH/fail2ban/ufw/sysctl hardening, and the vortex-slim footprint stripper.
+
+Package: vortex-core-sdcard
+Architecture: all
+Depends: ${misc:Depends}, vortex-core, log2ram
+Description: SD-card wear reduction for Vortex OS (Raspberry Pi)
+ Pulls in log2ram to keep /var/log in RAM and flush periodically.
+ Installed only by the Raspberry Pi image pipeline — do not install on
+ SSD/NVMe-backed machines or VMs.

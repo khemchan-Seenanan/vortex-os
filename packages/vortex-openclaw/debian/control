@@ -1,0 +1,17 @@
+Source: vortex-openclaw
+Section: misc
+Priority: optional
+Maintainer: Vortex OS <khemchanseenanan@gmail.com>
+Build-Depends: debhelper-compat (= 13), nodejs (>= 22.19), npm
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: vortex-openclaw
+Architecture: any
+Depends: ${misc:Depends}, nodejs (>= 22.19), vortex-core
+Description: OpenClaw AI agent, vendored and caged for Vortex OS
+ Ships a pinned OpenClaw release with its node_modules vendored into
+ /opt/openclaw (deterministic, offline-installable), a hardened systemd
+ unit running inside vortex.slice with tuned memory limits, and a low-RAM
+ config template. The service ships disabled; the first-boot wizard enables
+ it once API keys exist.

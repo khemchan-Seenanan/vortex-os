@@ -1,0 +1,8 @@
+{
+  "name": "vortex-openclaw-vendor",
+  "private": true,
+  "description": "Build-time staging manifest: pins the exact OpenClaw version vendored into /opt/openclaw. Upgrading OpenClaw = bump this pin, rebuild, publish.",
+  "dependencies": {
+    "openclaw": "2026.6.6"
+  }
+}

@@ -1,0 +1,6 @@
+[Unit]
+Description=Vortex OS setup applier (privileged side of the wizard)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/vortex-setup-apply

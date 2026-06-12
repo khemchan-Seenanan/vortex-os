@@ -1,0 +1,47 @@
+#!/bin/sh
+# Vortex OS dynamic MOTD. Must work on Pi, x86 and VMs (sensors may not exist).
+
+[ -f /usr/share/vortex/vortex.ascii ] && cat /usr/share/vortex/vortex.ascii
+
+. /etc/os-release 2>/dev/null
+printf '  %s — %s\n\n' "${PRETTY_NAME:-Vortex OS}" "$(uname -r)"
+
+# --- memory ---------------------------------------------------------------
+mem_line=$(free -m | awk '/^Mem:/{printf "%d MB / %d MB", $3, $2}')
+swap_line=$(free -m | awk '/^Swap:/{printf "%d MB / %d MB", $3, $2}')
+
+zram_ratio="n/a"
+if [ -r /sys/block/zram0/mm_stat ]; then
+    zram_ratio=$(awk '{ if ($2 > 0) printf "%.1fx", $1 / $2; else print "idle" }' /sys/block/zram0/mm_stat)
+fi
+
+# --- cpu temp: sysfs first, vcgencmd fallback, else n/a -------------------
+temp="n/a"
+for z in /sys/class/thermal/thermal_zone*/temp; do
+    [ -r "$z" ] || continue
+    t=$(cat "$z" 2>/dev/null) || continue
+    [ -n "$t" ] && [ "$t" -gt 0 ] 2>/dev/null && { temp=$(awk -v t="$t" 'BEGIN{printf "%.1f°C", t/1000}'); break; }
+done
+if [ "$temp" = "n/a" ] && command -v vcgencmd >/dev/null 2>&1; then
+    temp=$(vcgencmd measure_temp 2>/dev/null | sed "s/temp=//; s/'C/°C/") || temp="n/a"
+    [ -n "$temp" ] || temp="n/a"
+fi
+
+# --- services -------------------------------------------------------------
+claw=$(systemctl is-active openclaw.service 2>/dev/null || true)
+case "$claw" in
+    active)   claw_disp="running" ;;
+    inactive) claw_disp="stopped" ;;
+    failed)   claw_disp="FAILED (journalctl -u openclaw)" ;;
+    *)        claw_disp="not set up (visit /setup)" ;;
+esac
+
+# --- primary IP / web url -------------------------------------------------
+ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
+
+printf '  RAM        %s\n'  "$mem_line"
+printf '  swap       %s (zram %s)\n' "$swap_line" "$zram_ratio"
+printf '  CPU temp   %s\n'  "$temp"
+printf '  uptime     %s\n'  "$(uptime -p | sed 's/^up //')"
+printf '  OpenClaw   %s\n'  "$claw_disp"
+printf '\n  Manage this machine:  https://%s/  |  https://vortex.local/\n\n' "${ip:-<no-network>}"

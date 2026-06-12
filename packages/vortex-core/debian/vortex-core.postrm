@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Restore Debian's os-release symlink and drop generated config.
+        if [ -f /usr/lib/os-release ]; then
+            rm -f /etc/os-release
+            ln -s ../usr/lib/os-release /etc/os-release
+        fi
+        rm -f /etc/vortex-release \
+              /etc/sysctl.d/99-vortex-memory.conf \
+              /etc/vortex/openclaw.env
+        rm -rf /etc/systemd/system/vortex.slice.d
+        rmdir /etc/vortex 2>/dev/null || true
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

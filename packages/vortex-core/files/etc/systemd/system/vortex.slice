@@ -1,0 +1,9 @@
+# vortex.slice — the cgroup cage for AI workloads (openclaw.service runs here).
+# Memory limits are filled in by vortex-tune via vortex.slice.d/50-tuned.conf.
+[Unit]
+Description=Vortex AI workload slice
+Documentation=https://github.com/khemchan/vortex-os
+
+[Slice]
+ManagedOOMMemoryPressure=kill
+ManagedOOMMemoryPressureLimit=80%

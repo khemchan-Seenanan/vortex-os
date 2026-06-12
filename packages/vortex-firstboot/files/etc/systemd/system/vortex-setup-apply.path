@@ -1,0 +1,11 @@
+# Fires the root-side applier when the unprivileged wizard backend
+# (vortex-stats) or the console wizard drops a setup request.
+[Unit]
+Description=Watch for Vortex setup requests
+
+[Path]
+PathExists=/run/vortex-setup/request.json
+Unit=vortex-setup-apply.service
+
+[Install]
+WantedBy=multi-user.target

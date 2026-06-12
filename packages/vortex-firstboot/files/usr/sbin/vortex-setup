@@ -1,0 +1,60 @@
+#!/bin/bash
+# vortex-setup — console fallback for the first-boot wizard (whiptail).
+# Collects the same fields as the web wizard, writes the request file and lets
+# vortex-setup-apply do the privileged work, so both paths share one code path.
+set -uo pipefail
+
+RUNDIR=/run/vortex-setup
+REQ=$RUNDIR/request.json
+RES=$RUNDIR/result.json
+
+[ "$(id -u)" = 0 ] || { echo "run as root: sudo vortex-setup"; exit 1; }
+[ -f /etc/vortex/.initialized ] && { echo "This machine is already set up."; exit 0; }
+command -v whiptail >/dev/null || { echo "whiptail missing"; exit 1; }
+command -v jq >/dev/null || { echo "jq missing"; exit 1; }
+
+W() { whiptail --backtitle "Vortex OS first-boot setup" "$@" 3>&1 1>&2 2>&3; }
+
+password=""
+while :; do
+    password=$(W --title "Password" --passwordbox "Password for user 'vortex' (web console & sudo, min 8 chars):" 9 70) || exit 1
+    [ ${#password} -ge 8 ] && break
+    W --title "Too short" --msgbox "Password must be at least 8 characters." 8 50 || true
+done
+confirm=$(W --title "Password" --passwordbox "Repeat password:" 9 70) || exit 1
+[ "$password" = "$confirm" ] || { echo "Passwords do not match."; exit 1; }
+
+ssh_key=$(W --title "SSH key" --inputbox "Paste an SSH public key (empty = keep password SSH open):" 10 75 "") || exit 1
+anthropic=$(W --title "Anthropic API key" --inputbox "ANTHROPIC_API_KEY (optional):" 9 75 "") || exit 1
+openai=$(W --title "OpenAI API key" --inputbox "OPENAI_API_KEY (optional):" 9 75 "") || exit 1
+timezone=$(W --title "Timezone" --inputbox "Timezone:" 9 60 "America/Guyana") || exit 1
+ts_key=$(W --title "Tailscale" --inputbox "Tailscale auth key (optional):" 9 75 "") || exit 1
+
+mkdir -p "$RUNDIR"; chmod 0770 "$RUNDIR"; chgrp vortex-setup "$RUNDIR" 2>/dev/null || true
+rm -f "$RES"
+jq -n --arg pw "$password" --arg key "$ssh_key" --arg a "$anthropic" --arg o "$openai" \
+      --arg tz "$timezone" --arg ts "$ts_key" '
+  {password:$pw, ssh_key:$key, timezone:$tz, tailscale_key:$ts,
+   api_keys: ((if $a != "" then {ANTHROPIC_API_KEY:$a} else {} end)
+            + (if $o != "" then {OPENAI_API_KEY:$o} else {} end))}' > "$REQ"
+chmod 0660 "$REQ"; chgrp vortex-setup "$REQ" 2>/dev/null || true
+
+echo "Applying configuration (watch: journalctl -fu vortex-setup-apply)..."
+systemctl start vortex-setup-apply.service
+
+for _ in $(seq 1 240); do
+    if [ -f "$RES" ]; then
+        if jq -e '.ok' "$RES" >/dev/null 2>&1; then
+            rm -f "$RES"
+            echo "✓ Vortex is initialized. OpenClaw is starting."
+            echo "  Dashboard: https://$(hostname -I 2>/dev/null | awk '{print $1}')/"
+            exit 0
+        fi
+        echo "✗ Setup failed: $(jq -r '.error // "unknown"' "$RES")"
+        rm -f "$RES"
+        exit 1
+    fi
+    sleep 1
+done
+echo "✗ Timed out waiting for the applier — journalctl -u vortex-setup-apply"
+exit 1

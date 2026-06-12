@@ -1,0 +1,14 @@
+[Unit]
+Description=Vortex adaptive memory tuner
+Documentation=https://github.com/khemchan/vortex-os
+# Re-runs every boot: RAM can change between boots (VMs, swapped SD cards).
+After=local-fs.target
+Before=zramswap.service openclaw.service systemd-oomd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/vortex-tune
+
+[Install]
+WantedBy=multi-user.target

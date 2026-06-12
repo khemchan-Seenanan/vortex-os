@@ -1,0 +1,104 @@
+#!/bin/bash
+# Privileged side of the Vortex setup wizard. Triggered by vortex-setup-apply.path
+# when /run/vortex-setup/request.json appears (written by the web wizard backend
+# or the vortex-setup console wizard). Consumes the request, applies it, writes
+# result.json. Idempotent; NEVER logs secret values.
+set -uo pipefail
+
+RUNDIR=/run/vortex-setup
+REQ=$RUNDIR/request.json
+RES=$RUNDIR/result.json
+LOG=/var/log/vortex-firstboot.log
+SECRETS=/etc/vortex/openclaw-secrets.env
+TEMPLATE=/usr/share/vortex/templates/openclaw/openclaw.json
+
+log() { echo "$(date -u +%FT%TZ) apply: $*" | tee -a "$LOG"; }
+
+fail() {
+    log "FAILED: $1"
+    printf '{"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)" > "$RES"
+    chgrp vortex-setup "$RES" 2>/dev/null || true; chmod 0660 "$RES"
+    rm -f "$REQ"
+    exit 1
+}
+
+[ -f "$REQ" ] || exit 0
+command -v jq >/dev/null || fail "jq missing"
+
+password=$(jq -r '.password // empty' "$REQ")
+ssh_key=$(jq -r '.ssh_key // empty' "$REQ")
+timezone=$(jq -r '.timezone // empty' "$REQ")
+ts_key=$(jq -r '.tailscale_key // empty' "$REQ")
+
+# --- user + password --------------------------------------------------------
+getent passwd vortex >/dev/null || useradd --create-home --shell /bin/bash vortex
+usermod -aG sudo vortex 2>/dev/null || true
+if [ -n "$password" ]; then
+    printf 'vortex:%s\n' "$password" | chpasswd || fail "could not set password"
+    log "password set for user vortex"
+fi
+
+# --- ssh key + closing the password window ----------------------------------
+if [ -n "$ssh_key" ]; then
+    install -d -o vortex -g vortex -m 0700 /home/vortex/.ssh
+    touch /home/vortex/.ssh/authorized_keys
+    grep -qxF "$ssh_key" /home/vortex/.ssh/authorized_keys 2>/dev/null || \
+        printf '%s\n' "$ssh_key" >> /home/vortex/.ssh/authorized_keys
+    chown vortex:vortex /home/vortex/.ssh/authorized_keys
+    chmod 0600 /home/vortex/.ssh/authorized_keys
+    rm -f /etc/ssh/sshd_config.d/05-vortex-firstboot.conf
+    systemctl try-restart ssh.service || true
+    log "SSH key enrolled; password authentication disabled"
+fi
+
+# --- timezone ----------------------------------------------------------------
+if [ -n "$timezone" ] && [ -f "/usr/share/zoneinfo/$timezone" ]; then
+    timedatectl set-timezone "$timezone" 2>/dev/null || {
+        ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime
+        echo "$timezone" > /etc/timezone
+    }
+    log "timezone set to $timezone"
+fi
+
+# --- provider API keys → root-owned env file (names logged, values never) ----
+mkdir -p /etc/vortex
+{
+    echo "# Written by vortex-setup-apply. Loaded by openclaw.service."
+    jq -r '.api_keys // {} | to_entries[] | select(.key|test("^[A-Z][A-Z0-9_]*$")) | "\(.key)=\(.value)"' "$REQ"
+} > "$SECRETS"
+chown root:vortex "$SECRETS"; chmod 0640 "$SECRETS"
+log "secrets file written: $(jq -r '.api_keys // {} | keys | join(",")' "$REQ")"
+
+# --- OpenClaw config from template (don't clobber an existing config) --------
+if [ ! -f /home/vortex/.openclaw/openclaw.json ] && [ -f "$TEMPLATE" ]; then
+    install -d -o vortex -g vortex -m 0700 /home/vortex/.openclaw
+    install -o vortex -g vortex -m 0600 "$TEMPLATE" /home/vortex/.openclaw/openclaw.json
+    log "OpenClaw config rendered from template"
+fi
+
+# --- optional: Tailscale ------------------------------------------------------
+if [ -n "$ts_key" ]; then
+    if ! command -v tailscale >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale >>"$LOG" 2>&1 \
+            || log "WARNING: tailscale install failed (is the Vortex repo reachable?)"
+    fi
+    if command -v tailscale >/dev/null 2>&1; then
+        systemctl enable --now tailscaled || true
+        tailscale up --auth-key="$ts_key" >>"$LOG" 2>&1 \
+            && log "tailscale up OK" || log "WARNING: tailscale up failed"
+    fi
+fi
+
+# --- bring the system live ----------------------------------------------------
+systemctl enable --now openclaw.service || fail "openclaw.service failed to start — journalctl -u openclaw"
+ufw --force enable >/dev/null 2>&1 || log "WARNING: ufw enable failed"
+
+mkdir -p /etc/vortex
+touch /etc/vortex/.initialized
+rm -f /etc/issue.d/50-vortex.issue "$RUNDIR/code"
+log "initialization complete"
+
+printf '{"ok":true}\n' > "$RES"
+chgrp vortex-setup "$RES" 2>/dev/null || true; chmod 0660 "$RES"
+rm -f "$REQ"
+exit 0
