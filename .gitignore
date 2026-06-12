@@ -46,6 +46,8 @@ packages/*/debian/copyright
 packages/*/debian/*.debhelper*
 packages/*/debian/.debhelper/
 packages/*/debian/files
+packages/*/debian/*.substvars
+packages/*/debian/debhelper-build-stamp
 packages/*/debian/vortex-*/
 packages/vortex-webui/vortex-stats-bin
 
