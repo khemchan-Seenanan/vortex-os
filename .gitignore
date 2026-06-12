@@ -1,0 +1,45 @@
+# Build outputs
+dist/
+*.deb
+*.buildinfo
+*.changes
+*.img
+*.img.xz
+*.iso
+*.qcow2
+*.ova
+*.vmdk
+
+# Secrets / local keys — NEVER commit private keys.
+repo/keys/dev/
+repo/keys/*secret*
+repo/keys/*.key
+*.asc.secret
+
+# aptly working state
+repo/.aptly/
+repo/public/
+
+# pi-gen checkout (cloned by targets/pi/build.sh)
+targets/pi/pi-gen/
+
+# live-build working dirs
+targets/iso/cache/
+targets/iso/chroot/
+targets/iso/binary/
+targets/iso/.build/
+targets/iso/config/
+
+# debos scratch
+targets/vm/scratch/
+
+# Go
+tools/stats-daemon/vortex-stats
+tools/stats-daemon/vortex-stats-*
+
+# npm staging for vortex-openclaw
+packages/vortex-openclaw/opt/
+
+# misc
+*.log
+.DS_Store
